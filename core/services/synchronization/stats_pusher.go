@@ -175,7 +175,7 @@ func (sp *statsPusher) pusherLoop(parentCtx context.Context) error {
 }
 
 func (sp *statsPusher) pushEvents() error {
-	err := sp.ORM.AllSyncEvents(func(event *models.SyncEvent) error {
+	err := sp.ORM.AllSyncEvents(func(event models.SyncEvent) error {
 		return sp.syncEvent(event)
 	})
 
@@ -187,7 +187,7 @@ func (sp *statsPusher) pushEvents() error {
 	return nil
 }
 
-func (sp *statsPusher) syncEvent(event *models.SyncEvent) error {
+func (sp *statsPusher) syncEvent(event models.SyncEvent) error {
 	sp.WSClient.Send([]byte(event.Body))
 	numberEventsSent.Inc()
 

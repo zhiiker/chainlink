@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/smartcontractkit/chainlink/core/adapters"
@@ -804,10 +805,10 @@ func TestHTTP_RetryPolicy(t *testing.T) {
 	})
 	t.Run("retry if the server is broken", func(t *testing.T) {
 		t.Parallel()
-		var counter uint = 0
+		var counter uint32 = 0
 		srv := httptest.NewServer(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				counter += 1
+				atomic.AddUint32(&counter, 1)
 				hj, ok := w.(http.Hijacker)
 				if !ok {
 					t.Fatalf("Unable to hijack response writer!")
@@ -821,8 +822,8 @@ func TestHTTP_RetryPolicy(t *testing.T) {
 		defer srv.Close()
 		hga := makeHTTPGetAdapter(t, srv)
 		_ = hga.Perform(input, str)
-		expected := str.Config.DefaultMaxHTTPAttempts()
-		if counter != expected {
+		expected := uint32(str.Config.DefaultMaxHTTPAttempts())
+		if atomic.LoadUint32(&counter) != expected {
 			t.Fatalf("expected adapter to try %d times but got %d when the server is broken", expected, counter)
 		}
 	})

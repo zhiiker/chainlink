@@ -824,12 +824,12 @@ func TestORM_MarkRan(t *testing.T) {
 
 	require.NoError(t, store.CreateInitiator(&initr))
 
-	assert.NoError(t, store.MarkRan(&initr, true))
+	assert.NoError(t, store.MarkRan(initr, true))
 	ir, err := store.FindInitiator(initr.ID)
 	assert.NoError(t, err)
 	assert.True(t, ir.Ran)
 
-	assert.Error(t, store.MarkRan(&initr, true))
+	assert.Error(t, store.MarkRan(initr, true))
 }
 
 func TestORM_FindUser(t *testing.T) {
@@ -1012,8 +1012,8 @@ func TestORM_AllSyncEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	events := []models.SyncEvent{}
-	err = orm.AllSyncEvents(func(event *models.SyncEvent) error {
-		events = append(events, *event)
+	err = orm.AllSyncEvents(func(event models.SyncEvent) error {
+		events = append(events, event)
 		return nil
 	})
 	require.NoError(t, err)

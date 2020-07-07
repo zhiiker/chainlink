@@ -64,6 +64,8 @@ type websocketClient struct {
 	url       *url.URL
 	accessKey string
 	secret    string
+
+	statusMtx sync.RWMutex
 }
 
 // NewWebSocketClient returns a stats pusher using a websocket for
@@ -88,6 +90,8 @@ func (w *websocketClient) Url() url.URL {
 
 // Status returns the current connection status
 func (w *websocketClient) Status() ConnectionStatus {
+	w.statusMtx.RLock()
+	defer w.statusMtx.RUnlock()
 	return w.status
 }
 
@@ -169,7 +173,7 @@ func (w *websocketClient) connectAndWritePump(parentCtx context.Context, wg *syn
 			defer cancel()
 
 			if err := w.connect(connectionCtx); err != nil {
-				w.status = ConnectionStatusError
+				w.setStatus(ConnectionStatusError)
 				if !doneWaiting {
 					wg.Done()
 				}
@@ -177,7 +181,8 @@ func (w *websocketClient) connectAndWritePump(parentCtx context.Context, wg *syn
 				break
 			}
 
-			w.status = ConnectionStatusConnected
+			w.setStatus(ConnectionStatusConnected)
+
 			if !doneWaiting {
 				wg.Done()
 			}
@@ -189,6 +194,12 @@ func (w *websocketClient) connectAndWritePump(parentCtx context.Context, wg *syn
 
 		doneWaiting = true
 	}
+}
+
+func (w *websocketClient) setStatus(s ConnectionStatus) {
+	w.statusMtx.Lock()
+	w.status = s
+	w.statusMtx.Unlock()
 }
 
 // Inspired by https://github.com/gorilla/websocket/blob/master/examples/chat/client.go#L82
@@ -286,7 +297,7 @@ func (w *websocketClient) readPump(cancel context.CancelFunc) {
 
 func (w *websocketClient) wrapConnErrorIf(err error) {
 	if err != nil && websocket.IsUnexpectedCloseError(err, expectedCloseMessages...) {
-		w.status = ConnectionStatusError
+		w.setStatus(ConnectionStatusError)
 		logger.Error(fmt.Sprintf("websocketStatsPusher: %v", err))
 	}
 }

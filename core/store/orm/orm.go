@@ -232,7 +232,7 @@ func (orm *ORM) FindJobRun(id *models.ID) (models.JobRun, error) {
 }
 
 // AllSyncEvents returns all sync events
-func (orm *ORM) AllSyncEvents(cb func(*models.SyncEvent) error) error {
+func (orm *ORM) AllSyncEvents(cb func(models.SyncEvent) error) error {
 	orm.MustEnsureAdvisoryLock()
 	return Batch(BatchSize, func(offset, limit uint) (uint, error) {
 		var events []models.SyncEvent
@@ -246,7 +246,7 @@ func (orm *ORM) AllSyncEvents(cb func(*models.SyncEvent) error) error {
 		}
 
 		for _, event := range events {
-			err = cb(&event)
+			err = cb(event)
 			if err != nil {
 				return 0, err
 			}
@@ -821,7 +821,7 @@ func (orm *ORM) GetLastNonce(address common.Address) (uint64, error) {
 }
 
 // MarkRan will set Ran to true for a given initiator
-func (orm *ORM) MarkRan(i *models.Initiator, ran bool) error {
+func (orm *ORM) MarkRan(i models.Initiator, ran bool) error {
 	orm.MustEnsureAdvisoryLock()
 	return orm.convenientTransaction(func(dbtx *gorm.DB) error {
 		var newi models.Initiator
