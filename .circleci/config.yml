@@ -415,6 +415,10 @@ workflows:
                 - /^release\/.*/
                 - master
                 - /^hotfix\/.*/
+      - core-go-test-race:
+          filters:
+            tags:
+              only: /^v.*/
       - core-go-test:
           filters:
             tags:
@@ -496,6 +500,7 @@ workflows:
       - build-publish-chainlink:
           requires:
             - core-go-test
+            - core-go-test-race
             - geth-postgres
             - parity-postgres
             - styleguide
