@@ -65,6 +65,9 @@ type websocketClient struct {
 	accessKey string
 	secret    string
 
+	closeRequested chan struct{}
+	closed         chan struct{}
+
 	statusMtx sync.RWMutex
 }
 
@@ -80,6 +83,9 @@ func NewWebSocketClient(url *url.URL, accessKey, secret string) WebSocketClient 
 		status:    ConnectionStatusDisconnected,
 		accessKey: accessKey,
 		secret:    secret,
+
+		closeRequested: make(chan struct{}),
+		closed:         make(chan struct{}),
 	}
 }
 
@@ -263,6 +269,8 @@ func (w *websocketClient) connect(ctx context.Context) error {
 
 var expectedCloseMessages = []int{websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure}
 
+const closeTimeout = 5 * time.Second
+
 // readPump listens on the websocket connection for control messages and
 // response messages (text)
 //
@@ -284,6 +292,12 @@ func (w *websocketClient) readPump(cancel context.CancelFunc) {
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, expectedCloseMessages...) {
 				logger.Warn(fmt.Sprintf("readPump: %v", err))
+			}
+			select {
+			case <-w.closeRequested:
+				w.closed <- struct{}{}
+			case <-time.After(closeTimeout):
+				logger.Warn("websocket readPump failed to notify closer")
 			}
 			return
 		}
@@ -310,5 +324,11 @@ func (w *websocketClient) Close() error {
 		w.cancel()
 	}
 	w.started = false
+	select {
+	case w.closeRequested <- struct{}{}:
+		<-w.closed
+	case <-time.After(closeTimeout):
+		logger.Warn("websocketClient.Close failed to be notified from readPump")
+	}
 	return nil
 }
