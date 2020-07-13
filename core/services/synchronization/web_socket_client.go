@@ -198,8 +198,8 @@ func (w *websocketClient) connectAndWritePump(parentCtx context.Context, wg *syn
 
 func (w *websocketClient) setStatus(s ConnectionStatus) {
 	w.statusMtx.Lock()
+	defer w.statusMtx.Unlock()
 	w.status = s
-	w.statusMtx.Unlock()
 }
 
 // Inspired by https://github.com/gorilla/websocket/blob/master/examples/chat/client.go#L82
