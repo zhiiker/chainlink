@@ -269,7 +269,7 @@ func (w *websocketClient) connect(ctx context.Context) error {
 
 var expectedCloseMessages = []int{websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure}
 
-const closeTimeout = 5 * time.Second
+const closeTimeout = 100 * time.Millisecond
 
 // readPump listens on the websocket connection for control messages and
 // response messages (text)
