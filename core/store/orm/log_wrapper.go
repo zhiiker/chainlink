@@ -1,22 +1,31 @@
 package orm
 
 import (
-	"github.com/smartcontractkit/chainlink/core/logger"
-
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"go.uber.org/zap"
 )
 
-type ormLogWrapper struct {
-	*zap.SugaredLogger
+var logger *ormLogWrapper
+
+func init() {
+	logger = newOrmLogWrapper(logpkg.Default)
 }
 
-func newOrmLogWrapper(logger *logger.Logger) *ormLogWrapper {
+type ormLogWrapper struct {
+	*logpkg.Logger
+}
+
+func newOrmLogWrapper(logger *logpkg.Logger) *ormLogWrapper {
 	newLogger := logger.
 		SugaredLogger.
 		Desugar().
 		WithOptions(zap.AddCaller(), zap.AddCallerSkip(6)).
 		Sugar()
-	return &ormLogWrapper{newLogger}
+	return &ormLogWrapper{
+		Logger: &logpkg.Logger{
+			SugaredLogger: newLogger,
+		},
+	}
 }
 
 func (l *ormLogWrapper) Print(args ...interface{}) {

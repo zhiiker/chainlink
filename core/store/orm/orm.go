@@ -17,7 +17,6 @@ import (
 	"github.com/smartcontractkit/chainlink/core/assets"
 	"github.com/smartcontractkit/chainlink/core/auth"
 	"github.com/smartcontractkit/chainlink/core/gracefulpanic"
-	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/store/dbutil"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/store/models/vrfkey"
@@ -1546,8 +1545,6 @@ func (ct Connection) initializeDatabase() (*gorm.DB, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to open %s for gorm DB", ct.uri)
 	}
-
-	db.SetLogger(newOrmLogWrapper(logger.GetLogger()))
 
 	if err := dbutil.SetTimezone(db); err != nil {
 		return nil, err

@@ -14,7 +14,7 @@ import (
 
 	"github.com/smartcontractkit/chainlink/core/assets"
 	"github.com/smartcontractkit/chainlink/core/auth"
-	"github.com/smartcontractkit/chainlink/core/logger"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/synchronization"
 	"github.com/smartcontractkit/chainlink/core/store"
 	"github.com/smartcontractkit/chainlink/core/store/models"
@@ -35,6 +35,8 @@ const (
 	ethRequest requestType = iota
 	linkRequest
 )
+
+var logger = logpkg.Default
 
 // ShowEthBalance returns the current Eth Balance for current Account
 func ShowEthBalance(store *store.Store) ([]map[string]string, error) {

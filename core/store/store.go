@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/smartcontractkit/chainlink/core/gracefulpanic"
-	"github.com/smartcontractkit/chainlink/core/logger"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/chainlink/core/store/migrations"
 	"github.com/smartcontractkit/chainlink/core/store/models"
@@ -30,6 +30,8 @@ const (
 	// AutoMigrate is a flag that automatically migrates the DB when passed to initializeORM
 	AutoMigrate = "auto_migrate"
 )
+
+var logger = logpkg.Default
 
 type GethClientWrapper interface {
 	GethClient(func(gethClient eth.GethClient) error) error

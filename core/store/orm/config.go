@@ -13,7 +13,7 @@ import (
 	"strconv"
 
 	"github.com/smartcontractkit/chainlink/core/assets"
-	"github.com/smartcontractkit/chainlink/core/logger"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/utils"
 
@@ -25,7 +25,6 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -529,8 +528,8 @@ func (c Config) CertFile() string {
 // CreateProductionLogger returns a custom logger for the config's root
 // directory and LogLevel, with pretty printing for stdout. If LOG_TO_DISK is
 // false, the logger will only log to stdout.
-func (c Config) CreateProductionLogger() *zap.Logger {
-	return logger.CreateProductionLogger(
+func (c Config) CreateProductionLogger() *logpkg.Logger {
+	return logpkg.CreateProductionLogger(
 		c.RootDir(), c.JSONConsole(), c.LogLevel().Level, c.LogToDisk())
 }
 

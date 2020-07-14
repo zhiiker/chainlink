@@ -3,8 +3,6 @@ package models
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
-
-	"github.com/smartcontractkit/chainlink/core/logger"
 )
 
 // RandomnessLogEvent provides functionality specific to a log event emitted

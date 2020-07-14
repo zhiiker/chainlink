@@ -17,7 +17,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/smartcontractkit/chainlink/core/gracefulpanic"
-	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/bulletprooftxmanager"
 	"github.com/smartcontractkit/chainlink/core/services/chainlink"
 	strpkg "github.com/smartcontractkit/chainlink/core/store"
@@ -45,8 +44,7 @@ func (cli *Client) RunNode(c *clipkg.Context) error {
 	}
 
 	updateConfig(cli.Config, c.Bool("debug"), c.Int64("replay-from-block"))
-	logger.SetLogger(cli.Config.CreateProductionLogger())
-	logger.Infow("Starting Chainlink Node " + strpkg.Version + " at commit " + strpkg.Sha)
+	cli.Logger.Infow("Starting Chainlink Node " + strpkg.Version + " at commit " + strpkg.Sha)
 
 	err = InitEnclave()
 	if err != nil {
@@ -60,7 +58,7 @@ func (cli *Client) RunNode(c *clipkg.Context) error {
 	})
 	store := app.GetStore()
 	if e := checkFilePermissions(cli.Config.RootDir()); e != nil {
-		logger.Warn(e)
+		cli.Logger.Warn(e)
 	}
 	pwd, err := passwordFromFile(c.String("password"))
 	if err != nil {
@@ -92,7 +90,7 @@ func (cli *Client) RunNode(c *clipkg.Context) error {
 		}
 		return cli.errorOut(fmt.Errorf("error creating fallback initializer: %+v", err))
 	}
-	logger.Info("API exposed for user ", user.Email)
+	cli.Logger.Info("API exposed for user ", user.Email)
 	if e := app.Start(); e != nil {
 		return cli.errorOut(fmt.Errorf("error starting app: %+v", e))
 	}
@@ -245,7 +243,6 @@ func (cli *Client) RebroadcastTransactions(c *clipkg.Context) (err error) {
 	}
 	address := gethCommon.BytesToAddress(addressBytes)
 
-	logger.SetLogger(cli.Config.CreateProductionLogger())
 	cli.Config.Dialect = orm.DialectPostgresWithoutLock
 	app := cli.AppFactory.NewApplication(cli.Config)
 	defer func() {
@@ -270,12 +267,12 @@ func (cli *Client) RebroadcastTransactions(c *clipkg.Context) (err error) {
 	}
 
 	if store.Config.EnableBulletproofTxManager() {
-		logger.Infof("Rebroadcasting transactions from %v to %v", beginningNonce, endingNonce)
+		cli.Logger.Infof("Rebroadcasting transactions from %v to %v", beginningNonce, endingNonce)
 
 		ec := bulletprooftxmanager.NewEthConfirmer(store, cli.Config)
 		err = ec.ForceRebroadcast(beginningNonce, endingNonce, gasPriceWei, address, overrideGasLimit)
 	} else {
-		logger.Infof("Rebroadcasting legacy transactions from %v to %v", beginningNonce, endingNonce)
+		cli.Logger.Infof("Rebroadcasting legacy transactions from %v to %v", beginningNonce, endingNonce)
 
 		err = rebroadcastLegacyTransactions(store, beginningNonce, endingNonce, gasPriceWei, overrideGasLimit)
 	}
@@ -351,7 +348,6 @@ func rebroadcastLegacyTransactions(store *strpkg.Store, beginningNonce uint, end
 // ResetDatabase drops, creates and migrates the database specified by DATABASE_URL
 // This is useful to setup the database for testing
 func (cli *Client) ResetDatabase(c *clipkg.Context) error {
-	logger.SetLogger(cli.Config.CreateProductionLogger())
 	config := orm.NewConfig()
 	if config.DatabaseURL() == "" {
 		return cli.errorOut(errors.New("You must set DATABASE_URL env variable. HINT: If you are running this to set up your local test database, try DATABASE_URL=postgresql://postgres@localhost:5432/chainlink_test?sslmode=disable"))
@@ -365,7 +361,7 @@ func (cli *Client) ResetDatabase(c *clipkg.Context) error {
 	if !strings.HasSuffix(dbname, "_test") {
 		return cli.errorOut(fmt.Errorf("cannot reset database named `%s`. This command can only be run against databases with a name that ends in `_test`, to prevent accidental data loss", dbname))
 	}
-	logger.Infof("Resetting database: %#v", config.DatabaseURL())
+	cli.Logger.Infof("Resetting database: %#v", config.DatabaseURL())
 	if err := dropAndCreateDB(*parsed); err != nil {
 		return cli.errorOut(err)
 	}
@@ -455,7 +451,6 @@ func insertFixtures(config *orm.Config) (err error) {
 
 // DeleteUser is run locally to remove the User row from the node's database.
 func (cli *Client) DeleteUser(c *clipkg.Context) (err error) {
-	logger.SetLogger(cli.Config.CreateProductionLogger())
 	app := cli.AppFactory.NewApplication(cli.Config)
 	defer func() {
 		if serr := app.Stop(); serr != nil {
@@ -465,7 +460,7 @@ func (cli *Client) DeleteUser(c *clipkg.Context) (err error) {
 	store := app.GetStore()
 	user, err := store.DeleteUser()
 	if err == nil {
-		logger.Info("Deleted API user ", user.Email)
+		cli.Logger.Info("Deleted API user ", user.Email)
 	}
 	return err
 }
@@ -475,7 +470,6 @@ func (cli *Client) SetNextNonce(c *clipkg.Context) error {
 	addressHex := c.String("address")
 	nextNonce := c.Uint64("nextNonce")
 
-	logger.SetLogger(cli.Config.CreateProductionLogger())
 	db, err := gorm.Open(string(orm.DialectPostgres), cli.Config.DatabaseURL())
 	if err != nil {
 		return cli.errorOut(err)
@@ -498,7 +492,6 @@ func (cli *Client) SetNextNonce(c *clipkg.Context) error {
 
 // ImportKey imports a key to be used with the chainlink node
 func (cli *Client) ImportKey(c *clipkg.Context) error {
-	logger.SetLogger(cli.Config.CreateProductionLogger())
 	app := cli.AppFactory.NewApplication(cli.Config)
 
 	if !c.Args().Present() {

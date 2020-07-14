@@ -12,7 +12,7 @@ import (
 	"github.com/smartcontractkit/chainlink/core/cmd"
 	"github.com/smartcontractkit/chainlink/core/internal/cltest"
 	"github.com/smartcontractkit/chainlink/core/internal/mocks"
-	"github.com/smartcontractkit/chainlink/core/logger"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	strpkg "github.com/smartcontractkit/chainlink/core/store"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/store/orm"
@@ -66,7 +66,7 @@ func TestClient_RunNodeShowsEnv(t *testing.T) {
 		t.Fatal("Timed out waiting for runner")
 	}
 
-	logger.Sync()
+	logpkg.Default.Sync()
 	logs, err := cltest.ReadLogs(store.Config)
 	require.NoError(t, err)
 
@@ -267,9 +267,6 @@ func TestClient_LogToDiskOptionDisablesAsExpected(t *testing.T) {
 			require.NoError(t, os.MkdirAll(config.KeysDir(), os.FileMode(0700)))
 			defer os.RemoveAll(config.RootDir())
 
-			previousLogger := logger.GetLogger().Desugar()
-			logger.SetLogger(config.CreateProductionLogger())
-			defer logger.SetLogger(previousLogger)
 			filepath := filepath.Join(config.RootDir(), "log.jsonl")
 			_, err := os.Stat(filepath)
 			assert.Equal(t, os.IsNotExist(err), !tt.fileShouldExist)

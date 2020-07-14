@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smartcontractkit/chainlink/core/logger"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/chainlink"
 	"github.com/smartcontractkit/chainlink/core/store"
 	"github.com/smartcontractkit/chainlink/core/store/models"
@@ -32,6 +32,8 @@ var (
 	ErrorNoAPICredentialsAvailable = errors.New("API credentials must be supplied")
 )
 
+var logger = logpkg.Default
+
 // Client is the shell for the node, local commands and remote commands.
 type Client struct {
 	Renderer
@@ -46,6 +48,7 @@ type Client struct {
 	PromptingSessionRequestBuilder SessionRequestBuilder
 	ChangePasswordPrompter         ChangePasswordPrompter
 	PasswordPrompter               PasswordPrompter
+	Logger                         *logpkg.Logger
 }
 
 func (cli *Client) errorOut(err error) error {

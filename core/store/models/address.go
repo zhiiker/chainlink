@@ -7,8 +7,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/smartcontractkit/chainlink/core/logger"
-
 	"github.com/smartcontractkit/chainlink/core/utils"
 
 	"github.com/ethereum/go-ethereum/common"

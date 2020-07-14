@@ -8,17 +8,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/smartcontractkit/chainlink/core/assets"
-
 	"github.com/araddon/dateparse"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
+	"github.com/smartcontractkit/chainlink/core/assets"
+	logpkg "github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+var logger = logpkg.Default
 
 // CronParser is the global parser for crontabs.
 // It accepts the standard 5 field cron syntax as well as an optional 6th field

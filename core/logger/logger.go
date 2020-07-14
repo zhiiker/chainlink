@@ -18,6 +18,12 @@ import (
 )
 
 var (
+	// Default is a zap sugarred logger.
+	Default *Logger
+)
+
+// TODO remove
+var (
 	logger *Logger
 	mtx    sync.RWMutex
 )
@@ -36,9 +42,12 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	Default = &Logger{SugaredLogger: zl.Sugar()}
+	// TODO remove this
 	SetLogger(zl)
 }
 
+// TODO remove
 func GetLogger() *Logger {
 	mtx.RLock()
 	defer mtx.RUnlock()
@@ -56,6 +65,7 @@ type Logger struct {
 	*zap.SugaredLogger
 }
 
+// TODO remove this
 // Write logs a message at the Info level and returns the length
 // of the given bytes.
 func (l *Logger) Write(b []byte) (int, error) {
@@ -63,6 +73,45 @@ func (l *Logger) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+// WarnIf logs the error if present.
+func (l *Logger) WarnIf(err error) {
+	if err != nil {
+		l.Warn(err)
+	}
+}
+
+// ErrorIf logs the error if present.
+func (l *Logger) ErrorIf(err error, optionalMsg ...string) {
+	if err != nil {
+		if len(optionalMsg) > 0 {
+			l.Error(errors.Wrap(err, optionalMsg[0]))
+		} else {
+			l.Error(err)
+		}
+	}
+}
+
+// ErrorIfCalling calls the given function and logs the error of it if there is.
+func (l *Logger) ErrorIfCalling(f func() error, optionalMsg ...string) {
+	err := f()
+	if err != nil {
+		e := errors.Wrap(err, runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name())
+		if len(optionalMsg) > 0 {
+			logger.Error(errors.Wrap(e, optionalMsg[0]))
+		} else {
+			logger.Error(e)
+		}
+	}
+}
+
+// PanicIf logs the error if present.
+func (l *Logger) PanicIf(err error) {
+	if err != nil {
+		l.Panic(err)
+	}
+}
+
+// TODO remove this
 // SetLogger sets the internal logger to the given input.
 func SetLogger(zl *zap.Logger) {
 	mtx.Lock()
@@ -81,11 +130,21 @@ func SetLogger(zl *zap.Logger) {
 	}
 	logger = &Logger{zl.Sugar()}
 }
+func (l *Logger) MustSync() {
+	if err := l.Sync(); err != nil {
+		if stderr.Unwrap(err).Error() != os.ErrInvalid.Error() &&
+			stderr.Unwrap(err).Error() != "inappropriate ioctl for device" &&
+			stderr.Unwrap(err).Error() != "bad file descriptor" {
+			// logger.Sync() will return 'invalid argument' error when closing file
+			log.Fatalf("failed to sync logger %+v", err)
+		}
+	}
+}
 
 // CreateProductionLogger returns a log config for the passed directory
 // with the given LogLevel and customizes stdout for pretty printing.
 func CreateProductionLogger(
-	dir string, jsonConsole bool, lvl zapcore.Level, toDisk bool) *zap.Logger {
+	dir string, jsonConsole bool, lvl zapcore.Level, toDisk bool) *Logger {
 	config := zap.NewProductionConfig()
 	if !jsonConsole {
 		config.OutputPaths = []string{"pretty://console"}
@@ -101,9 +160,10 @@ func CreateProductionLogger(
 	if err != nil {
 		log.Fatal(err)
 	}
-	return zl
+	return &Logger{SugaredLogger: zl.Sugar()}
 }
 
+// TODO remove all this below!
 // Infow logs an info message and any additional given information.
 func Infow(msg string, keysAndValues ...interface{}) {
 	mtx.RLock()
