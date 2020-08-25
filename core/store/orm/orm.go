@@ -1441,7 +1441,7 @@ func (orm *ORM) IncrFluxMonitorRoundSubmissions(aggregator common.Address, round
     `, aggregator, roundID).Error
 }
 
-func (orm *ORM) CreateOffchainReportingJobSpec(spec offchainreporting.JobSpec) error {
+func (orm *ORM) CreateOffchainReportingJobSpec(spec *offchainreporting.JobSpec) error {
 	orm.MustEnsureAdvisoryLock()
 
 	p2pBootstrapNodesJSON, err := json.Marshal(spec.P2PBootstrapNodes)
@@ -1452,22 +1452,22 @@ func (orm *ORM) CreateOffchainReportingJobSpec(spec offchainreporting.JobSpec) e
 	if err != nil {
 		return err
 	}
-	id := models.NewID()
+	if spec.ID == (models.ID{}) {
+		spec.ID = models.NewID()
+	}
 	err = orm.DB.Exec(`
         INSERT INTO offchain_reporting_job_specs (
             id, contract_address, p2p_node_id, p2p_bootstrap_nodes, key_bundle,
-            monitoring_endpoint, node_address, observation_timeout, observation_source
+            monitoring_endpoint, node_address, observation_timeout
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?
-        ) RETURNING
-    `, id, spec.ContractAddress, spec.P2PNodeID, p2pBootstrapNodesJSON, spec.KeyBundle,
-		spec.MonitoringEndpoint, spec.NodeAddress, spec.ObservationTimeout, observationSourceJSON).
-		Scan(&id).
+        )
+    `, spec.ID, spec.ContractAddress, spec.P2PNodeID, p2pBootstrapNodesJSON, spec.KeyBundle,
+		spec.MonitoringEndpoint, spec.NodeAddress, spec.ObservationTimeout).
 		Error
 	if err != nil {
 		return err
 	}
-	spec.ID = id
 	return nil
 }
 
@@ -1479,9 +1479,11 @@ func (orm *ORM) FindOffchainReportingJobSpec(id models.ID) (offchainreporting.Jo
 	observationSourceJSON := []byte{}
 
 	err := orm.DB.Exec(`
-        SELECT contract_address, p2p_node_id, p2p_bootstrap_nodes, key_bundle,
-            monitoring_endpoint, node_address, observation_timeout, observation_source
+        SELECT j.contract_address, j.p2p_node_id, j.p2p_bootstrap_nodes, j.key_bundle,
+            j.monitoring_endpoint, j.node_address, j.observation_timeout, j.observation_source,
+            f.id, f.type, f.params
         FROM offchain_reporting_job_specs
+        LEFT JOIN fetchers ON f.job_id = j.id
         WHERE id = ?
     `, id).
 		Scan(&spec.ContractAddress, &spec.P2PNodeID, &p2pBootstrapNodesJSON, &spec.KeyBundle,
