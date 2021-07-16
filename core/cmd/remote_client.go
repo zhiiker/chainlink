@@ -20,11 +20,8 @@ import (
 	clipkg "github.com/urfave/cli"
 	"go.uber.org/multierr"
 
-	"github.com/smartcontractkit/chainlink/core/assets"
-	"github.com/smartcontractkit/chainlink/core/services/pipeline"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/store/presenters"
-	"github.com/smartcontractkit/chainlink/core/utils"
 	"github.com/smartcontractkit/chainlink/core/web"
 	webpresenters "github.com/smartcontractkit/chainlink/core/web/presenters"
 )
@@ -211,93 +208,6 @@ func (cli *Client) ArchiveJobSpec(c *clipkg.Context) error {
 	return nil
 }
 
-// ListJobsV2 lists all v2 jobs
-func (cli *Client) ListJobsV2(c *clipkg.Context) (err error) {
-	return cli.getPage("/v2/jobs", c.Int("page"), &[]Job{})
-}
-
-// CreateJobV2 creates a V2 job
-// Valid input is a TOML string or a path to TOML file
-func (cli *Client) CreateJobV2(c *clipkg.Context) (err error) {
-	if !c.Args().Present() {
-		return cli.errorOut(errors.New("Must pass in TOML or filepath"))
-	}
-
-	tomlString, err := getTOMLString(c.Args().First())
-	if err != nil {
-		return cli.errorOut(err)
-	}
-
-	request, err := json.Marshal(models.CreateJobSpecRequest{
-		TOML: tomlString,
-	})
-	if err != nil {
-		return cli.errorOut(err)
-	}
-
-	resp, err := cli.HTTP.Post("/v2/jobs", bytes.NewReader(request))
-	if err != nil {
-		return cli.errorOut(err)
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			err = multierr.Append(err, cerr)
-		}
-	}()
-
-	if resp.StatusCode >= 400 {
-		body, rerr := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			err = multierr.Append(err, rerr)
-			return cli.errorOut(err)
-		}
-		fmt.Printf("Error : %v\n", string(body))
-		return cli.errorOut(err)
-	}
-
-	var js Job
-	err = cli.renderAPIResponse(resp, &js, "Job created")
-	return err
-}
-
-// DeleteJobV2 deletes a V2 job
-func (cli *Client) DeleteJobV2(c *clipkg.Context) error {
-	if !c.Args().Present() {
-		return cli.errorOut(errors.New("Must pass the job id to be archived"))
-	}
-	resp, err := cli.HTTP.Delete("/v2/jobs/" + c.Args().First())
-	if err != nil {
-		return cli.errorOut(err)
-	}
-	_, err = cli.parseResponse(resp)
-	if err != nil {
-		return cli.errorOut(err)
-	}
-
-	fmt.Printf("Job %v Deleted\n", c.Args().First())
-	return nil
-}
-
-// TriggerPipelineRun triggers a V2 job run based on a job ID
-func (cli *Client) TriggerPipelineRun(c *clipkg.Context) error {
-	if !c.Args().Present() {
-		return cli.errorOut(errors.New("Must pass the job id to trigger a run"))
-	}
-	resp, err := cli.HTTP.Post("/v2/jobs/"+c.Args().First()+"/runs", nil)
-	if err != nil {
-		return cli.errorOut(err)
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			err = multierr.Append(err, cerr)
-		}
-	}()
-
-	var run pipeline.Run
-	err = cli.renderAPIResponse(resp, &run, "Pipeline run successfully triggered")
-	return err
-}
-
 // CreateJobRun creates job run based on SpecID and optional JSON
 func (cli *Client) CreateJobRun(c *clipkg.Context) (err error) {
 	if !c.Args().Present() {
@@ -367,62 +277,6 @@ func (cli *Client) RemoteLogin(c *clipkg.Context) error {
 	return cli.errorOut(err)
 }
 
-// SendEther transfers ETH from the node's account to a specified address.
-func (cli *Client) SendEther(c *clipkg.Context) (err error) {
-	if c.NArg() < 3 {
-		return cli.errorOut(errors.New("sendether expects three arguments: amount, fromAddress and toAddress"))
-	}
-
-	amount, err := assets.NewEthValueS(c.Args().Get(0))
-	if err != nil {
-		return cli.errorOut(multierr.Combine(
-			errors.New("while parsing ETH transfer amount"), err))
-	}
-
-	unparsedFromAddress := c.Args().Get(1)
-	fromAddress, err := utils.ParseEthereumAddress(unparsedFromAddress)
-	if err != nil {
-		return cli.errorOut(multierr.Combine(
-			fmt.Errorf("while parsing withdrawal source address %v",
-				unparsedFromAddress), err))
-	}
-
-	unparsedDestinationAddress := c.Args().Get(2)
-	destinationAddress, err := utils.ParseEthereumAddress(unparsedDestinationAddress)
-	if err != nil {
-		return cli.errorOut(multierr.Combine(
-			fmt.Errorf("while parsing withdrawal destination address %v",
-				unparsedDestinationAddress), err))
-	}
-
-	request := models.SendEtherRequest{
-		DestinationAddress: destinationAddress,
-		FromAddress:        fromAddress,
-		Amount:             amount,
-	}
-
-	requestData, err := json.Marshal(request)
-	if err != nil {
-		return cli.errorOut(err)
-	}
-
-	buf := bytes.NewBuffer(requestData)
-
-	resp, err := cli.HTTP.Post("/v2/transfers", buf)
-	if err != nil {
-		return cli.errorOut(err)
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			err = multierr.Append(err, cerr)
-		}
-	}()
-
-	var tx webpresenters.EthTxResource
-	err = cli.renderAPIResponse(resp, &tx)
-	return err
-}
-
 // ChangePassword prompts the user for the old password and a new one, then
 // posts it to Chainlink to change the password.
 func (cli *Client) ChangePassword(c *clipkg.Context) (err error) {
@@ -455,38 +309,6 @@ func (cli *Client) ChangePassword(c *clipkg.Context) (err error) {
 		return cli.printResponseBody(resp)
 	}
 	return nil
-}
-
-// IndexTransactions returns the list of transactions in descending order,
-// taking an optional page parameter
-func (cli *Client) IndexTransactions(c *clipkg.Context) error {
-	return cli.getPage("/v2/transactions", c.Int("page"), &[]webpresenters.EthTxResource{})
-}
-
-// ShowTransaction returns the info for the given transaction hash
-func (cli *Client) ShowTransaction(c *clipkg.Context) (err error) {
-	if !c.Args().Present() {
-		return cli.errorOut(errors.New("Must pass the hash of the transaction"))
-	}
-	hash := c.Args().First()
-	resp, err := cli.HTTP.Get("/v2/transactions/" + hash)
-	if err != nil {
-		return cli.errorOut(err)
-	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			err = multierr.Append(err, cerr)
-		}
-	}()
-	var tx webpresenters.EthTxResource
-	err = cli.renderAPIResponse(resp, &tx)
-	return err
-}
-
-// IndexTxAttempts returns the list of transactions in descending order,
-// taking an optional page parameter
-func (cli *Client) IndexTxAttempts(c *clipkg.Context) error {
-	return cli.getPage("/v2/tx_attempts", c.Int("page"), &[]webpresenters.EthTxResource{})
 }
 
 func (cli *Client) buildSessionRequest(flag string) (models.SessionRequest, error) {
@@ -647,8 +469,8 @@ func (cli *Client) SetLogLevel(c *clipkg.Context) (err error) {
 		}
 	}()
 
-	var lR webpresenters.LogResource
-	err = cli.renderAPIResponse(resp, &lR)
+	var svcLogConfig webpresenters.ServiceLogConfigResource
+	err = cli.renderAPIResponse(resp, &svcLogConfig)
 	return err
 }
 
@@ -683,8 +505,42 @@ func (cli *Client) SetLogSQL(c *clipkg.Context) (err error) {
 		}
 	}()
 
-	var lR webpresenters.LogResource
-	err = cli.renderAPIResponse(resp, &lR)
+	var svcLogConfig webpresenters.ServiceLogConfigResource
+	err = cli.renderAPIResponse(resp, &svcLogConfig)
+	return err
+}
+
+// SetLogPkg sets the package log filter on the node
+func (cli *Client) SetLogPkg(c *clipkg.Context) (err error) {
+	pkg := strings.Split(c.String("pkg"), ",")
+	level := strings.Split(c.String("level"), ",")
+
+	serviceLogLevel := make([][2]string, len(pkg))
+	for i, p := range pkg {
+		serviceLogLevel[i][0] = p
+		serviceLogLevel[i][1] = level[i]
+	}
+
+	request := web.LogPatchRequest{ServiceLogLevel: serviceLogLevel}
+	requestData, err := json.Marshal(request)
+	if err != nil {
+		return cli.errorOut(err)
+	}
+
+	buf := bytes.NewBuffer(requestData)
+	resp, err := cli.HTTP.Patch("/v2/log", buf)
+	if err != nil {
+		return cli.errorOut(errors.Wrap(err, "set pkg specific logging levels"))
+	}
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			err = multierr.Append(err, cerr)
+		}
+	}()
+
+	var svcLogConfig webpresenters.ServiceLogConfigResource
+	err = cli.renderAPIResponse(resp, &svcLogConfig)
+
 	return err
 }
 

@@ -27,7 +27,7 @@ import (
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/chainlink"
 	"github.com/smartcontractkit/chainlink/core/store/orm"
-	"github.com/smartcontractkit/chainlink/core/store/presenters"
+	"github.com/smartcontractkit/chainlink/core/web/presenters"
 	"github.com/ulule/limiter"
 	mgin "github.com/ulule/limiter/drivers/middleware/gin"
 	"github.com/ulule/limiter/drivers/store/memory"
@@ -67,7 +67,8 @@ func explorerStatus(app chainlink.Application) gin.HandlerFunc {
 			panic(err)
 		}
 
-		c.SetCookie("explorer", (string)(b), 0, "", "", http.SameSiteStrictMode, false, false)
+		c.SetSameSite(http.SameSiteStrictMode)
+		c.SetCookie("explorer", (string)(b), 0, "", "", false, false)
 		c.Next()
 	}
 }
@@ -107,6 +108,7 @@ func Router(app chainlink.Application) *gin.Engine {
 	)
 
 	metricRoutes(app, api)
+	healthRoutes(app, api)
 	sessionRoutes(app, api)
 	v2Routes(app, api)
 
@@ -199,6 +201,12 @@ func sessionRoutes(app chainlink.Application, r *gin.RouterGroup) {
 	auth.DELETE("/sessions", sc.Destroy)
 }
 
+func healthRoutes(app chainlink.Application, r *gin.RouterGroup) {
+	hc := HealthController{app}
+	r.GET("/readyz", hc.Readyz)
+	r.GET("/health", hc.Health)
+}
+
 func v2Routes(app chainlink.Application, r *gin.RouterGroup) {
 	unauthedv2 := r.Group("/v2")
 
@@ -210,6 +218,8 @@ func v2Routes(app chainlink.Application, r *gin.RouterGroup) {
 
 	j := JobSpecsController{app}
 	jsec := JobSpecErrorsController{app}
+	prc := PipelineRunsController{app}
+	unauthedv2.PATCH("/resume/:runID", prc.Resume)
 
 	authv2 := r.Group("/v2", RequireAuth(app.GetStore(), AuthenticateByToken, AuthenticateBySession))
 	{
@@ -249,6 +259,11 @@ func v2Routes(app chainlink.Application, r *gin.RouterGroup) {
 		authv2.GET("/config", cc.Show)
 		authv2.PATCH("/config", cc.Patch)
 
+		feedsMgrCtlr := FeedsManagerController{app}
+		authv2.GET("/feeds_managers", feedsMgrCtlr.List)
+		authv2.POST("/feeds_managers", feedsMgrCtlr.Create)
+		authv2.GET("/feeds_managers/:id", feedsMgrCtlr.Show)
+
 		tas := TxAttemptsController{app}
 		authv2.GET("/tx_attempts", paginatedRequest(tas.Index))
 
@@ -280,16 +295,32 @@ func v2Routes(app chainlink.Application, r *gin.RouterGroup) {
 		authv2.POST("/keys/p2p/import", p2pkc.Import)
 		authv2.POST("/keys/p2p/export/:ID", p2pkc.Export)
 
+		csakc := CSAKeysController{app}
+		authv2.GET("/keys/csa", csakc.Index)
+		authv2.POST("/keys/csa", csakc.Create)
+
+		vrfkc := VRFKeysController{app}
+		authv2.GET("/keys/vrf", vrfkc.Index)
+		authv2.POST("/keys/vrf", vrfkc.Create)
+		authv2.DELETE("/keys/vrf/:keyID", vrfkc.Delete)
+		authv2.POST("/keys/vrf/import", vrfkc.Import)
+		authv2.POST("/keys/vrf/export/:keyID", vrfkc.Export)
+
 		jc := JobsController{app}
 		authv2.GET("/jobs", jc.Index)
 		authv2.GET("/jobs/:ID", jc.Show)
 		authv2.POST("/jobs", jc.Create)
 		authv2.DELETE("/jobs/:ID", jc.Delete)
 
-		prc := PipelineRunsController{app}
+		jpc := JobProposalsController{app}
+		authv2.POST("/job_proposals/:id/reject", jpc.Reject)
+
+		mc := MigrateController{app}
+		authv2.POST("/migrate/:ID", mc.Migrate)
+
+		// PipelineRunsController
 		authv2.GET("/jobs/:ID/runs", paginatedRequest(prc.Index))
 		authv2.GET("/jobs/:ID/runs/:runID", prc.Show)
-		authv2.POST("/jobs/:ID/runs", prc.Create)
 
 		lgc := LogController{app}
 		authv2.GET("/log", lgc.Get)
@@ -304,6 +335,7 @@ func v2Routes(app chainlink.Application, r *gin.RouterGroup) {
 	))
 	userOrEI.POST("/specs/:SpecID/runs", jr.Create)
 	userOrEI.GET("/ping", ping.Show)
+	userOrEI.POST("/jobs/:ID/runs", prc.Create)
 }
 
 // This is higher because it serves main.js and any static images. There are
@@ -325,8 +357,16 @@ func guiAssetRoutes(box packr.Box, engine *gin.Engine, config *orm.Config) {
 		))
 	}
 
-	assetsRouter := engine.Group("/assets", assetsRouterHandlers...)
-	assetsRouter.StaticFS("/", http.FileSystem(box))
+	assetsRouterHandlers = append(
+		assetsRouterHandlers,
+		ServeGzippedAssets("/assets", &BoxFileSystem{Box: box}),
+	)
+
+	// Get Operator UI Assets
+	//
+	// We have to use a route here because a RouterGroup only runs middlewares
+	// when a route matches exactly. See https://github.com/gin-gonic/gin/issues/531
+	engine.GET("/assets/:file", assetsRouterHandlers...)
 
 	// Serve the index HTML file unless it is an api path
 	noRouteHandlers := []gin.HandlerFunc{}
